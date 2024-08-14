@@ -123,6 +123,106 @@ where employeeID not in (select e.employeeID from employees e join relative r
  group by r.employeeID
  having count(r.relativeName) >= 1;
 -- 19. Find the surname (lastName) of unmarried department heads. 
-select employeeID from employees e
+select lastName from employees e
 where employeeID not in (select distinct employeeID from relative r 
 where relationship in ('Vo chong', 'Con trai', 'Con gai'));
+-- 20. Indicate the full name of the employee (lastName, middleName, firstName) whose salary 
+-- is above the average salary of the "Research" department. 
+with A as (select avg(salary) from employees e join department d
+on e.departmentID = d.departmentID
+where d.departmentName = 'Nghien cuu')
+select concat(e.lastName,' ',e.middleName,' ', e.firstName) as employee_fullname from employees e
+where salary > (select * from A);
+-- 21 Indicate the name of the department and the full name of the head of the department with 
+-- the largest number of employees. 
+with A as (select count(e1.employeeID) as numOfEmploy, d.departmentID,d.departmentName, d.managerID from department d join employees e1
+on d.departmentID = e1.departmentID
+group by d.departmentID
+order by numOfEmploy desc
+limit 1)
+select A.departmentName,concat(e.lastName,' ',e.middleName,' ', e.firstName) as manager_fullnam from A join employees e
+on A.managerID = e.employeeID;
+-- 22 Find the full names (lastName, middleName, firstName) and addresses (Address) of 
+-- employees who work on a project in 'HCMC' but the department they belong to is not 
+-- located in 'HCMC'. 
+select e.lastName,e.middleName,e.firstName,e.address from employees e join assignments a
+on e.employeeID = a.employeeID
+join projects p on p.projectID = a.projectID
+join department d on d.departmentID= e.departmentID
+join departmentaddress da on da.departmentID = d.departmentID
+where p.projectAddress = 'TP HCM' and da.address != 'TP HCM';
+-- 23 . Find the names and addresses of employees who work on a scheme in a city but the 
+-- department to which they belong is not located in that city.
+select distinct e.lastName,e.middleName,e.firstName,e.address from employees e join assignments a
+on e.employeeID = a.employeeID
+join projects p on p.projectID = a.projectID
+join department d on d.departmentID= e.departmentID
+join departmentaddress da on da.departmentID = d.departmentID
+where p.projectAddress != da.address;
+-- 24 . Create procedure List employee information by department with input data 
+-- departmentName. 
+delimiter $$
+create procedure listEmployDepartment(IN nameInput varchar(50))
+begin
+select * from employees e join department d
+on e.departmentID = d.departmentID
+where d.departmentName = nameInput;
+end$$
+delimiter ;
+call listEmployDepartment('Nghien cuu');
+-- 25 . Create a procedure to Search for projects that an employee participates in based on the 
+-- employee's last name (lastName).
+delimiter $$
+create procedure searchProject(IN nameInput varchar(50))
+begin
+select p.projectID,p.projectName from employees e join department d
+on e.departmentID = d.departmentID
+join projects p on p.departmentID
+where e.lastName = nameInput;
+end$$
+delimiter ;
+call searchProject('Dinh');
+-- 26 Create a function to calculate the average salary of a department with input data 
+-- departmentID. 
+delimiter $$
+create function cal_avg_salary(department_id int)
+returns int
+deterministic
+begin
+declare result int;
+select avg(salary) into result from employees e join department d
+on e.departmentID = d.departmentID
+where d.departmentID = department_id
+group by d.departmentID;
+return result;
+end$$
+delimiter ;
+select cal_avg_salary('4') as avg_result;
+-- 27. Create a function to Check if an employee is involved in a particular project input data is 
+-- employeeID, projectID.
+delimiter $$
+create function check_employ(employID int, projectID int)
+returns varchar(10)
+deterministic
+begin
+    declare checkR varchar(10);
+    with A as (
+        select count(employeeID) as countR
+        from employees e 
+        join department d on e.departmentID = d.departmentID
+        join projects p on p.departmentID = d.departmentID
+        where employeeID = employID and p.projectID = projectID
+        group by p.projectID
+    )
+    select
+        case
+            when countR = 0 then 'false'
+            else 'true'
+        end
+    into checkR
+    from A;
+
+    RETURN checkR;
+end$$
+delimiter ;
+select check_employ(123, 2) as checkResult;
